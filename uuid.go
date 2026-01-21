@@ -6,11 +6,15 @@ package uuid
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
+
+	// Uses math/rand/v2 for random number generation
+	// because it uses chacha8 as the default source,
+	// which is cryptographically secure and much faster
+	chacha8RandV2 "math/rand/v2"
 	"strings"
 	"sync"
 )
@@ -42,8 +46,8 @@ const Standard = RFC4122
 const randPoolSize = 16 * 16
 
 var (
-	rander      = rand.Reader // random function
-	poolEnabled = false
+	rander      io.Reader = defaultRandReader{}
+	poolEnabled           = false
 	poolMu      sync.Mutex
 	poolPos     = randPoolSize     // protected with poolMu
 	pool        [randPoolSize]byte // protected with poolMu
@@ -52,7 +56,7 @@ var (
 	ErrInvalidBracketedFormat = errors.New("invalid bracketed UUID format")
 )
 
-type URNPrefixError struct { prefix string }
+type URNPrefixError struct{ prefix string }
 
 func (e URNPrefixError) Error() string {
 	return fmt.Sprintf("invalid urn prefix: %q", e.prefix)
@@ -215,10 +219,12 @@ func Must(uuid UUID, err error) UUID {
 }
 
 // Validate returns an error if s is not a properly formatted UUID in one of the following formats:
-//   xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-//   urn:uuid:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-//   xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-//   {xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}
+//
+//	xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+//	urn:uuid:xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+//	xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+//	{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}
+//
 // It returns an error if the format is invalid, otherwise nil.
 func Validate(s string) error {
 	switch len(s) {
@@ -346,7 +352,7 @@ func (v Variant) String() string {
 // generator.
 func SetRand(r io.Reader) {
 	if r == nil {
-		rander = rand.Reader
+		rander = defaultRandReader{}
 		return
 	}
 	rander = r
@@ -390,4 +396,26 @@ func (uuids UUIDs) Strings() []string {
 		uuidStrs[i] = uuid.String()
 	}
 	return uuidStrs
+}
+
+// Singleton with no state that implements
+// io.Reader and uses the default rand/v2
+// package to read bytes.
+type defaultRandReader struct{}
+
+// Read fills the provided byte slice `b` with random data using a
+// cryptographically secure random number generator.
+func (d defaultRandReader) Read(b []byte) (n int, err error) {
+	var num uint64
+	numByteIndex := 0
+
+	for i := range b {
+		if numByteIndex == 0 {
+			num = chacha8RandV2.Uint64()
+		}
+		b[i] = byte(num >> (numByteIndex * 8))
+		numByteIndex = (numByteIndex + 1) % 8
+	}
+
+	return len(b), nil
 }
