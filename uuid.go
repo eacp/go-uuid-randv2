@@ -14,7 +14,7 @@ import (
 	// Uses math/rand/v2 for random number generation
 	// because it uses chacha8 as the default source,
 	// which is cryptographically secure and much faster
-	chacha8RandV2 "math/rand/v2"
+
 	"strings"
 	"sync"
 )
@@ -396,26 +396,4 @@ func (uuids UUIDs) Strings() []string {
 		uuidStrs[i] = uuid.String()
 	}
 	return uuidStrs
-}
-
-// Singleton with no state that implements
-// io.Reader and uses the default rand/v2
-// package to read bytes.
-type defaultRandReader struct{}
-
-// Read fills the provided byte slice `b` with random data using a
-// cryptographically secure random number generator.
-func (d defaultRandReader) Read(b []byte) (n int, err error) {
-	var num uint64
-	numByteIndex := 0
-
-	for i := range b {
-		if numByteIndex == 0 {
-			num = chacha8RandV2.Uint64()
-		}
-		b[i] = byte(num >> (numByteIndex * 8))
-		numByteIndex = (numByteIndex + 1) % 8
-	}
-
-	return len(b), nil
 }
