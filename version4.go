@@ -108,8 +108,8 @@ func (d defaultRandReader) Read(b []byte) (n int, err error) {
 func fastRandV4DefaultZeroAlloc() UUID {
 	var uuid UUID
 	hi, low := chacha8RandV2.Uint64(), chacha8RandV2.Uint64()
-	binary.LittleEndian.PutUint64(uuid[0:8], hi)
-	binary.LittleEndian.PutUint64(uuid[8:16], low)
+	binary.BigEndian.PutUint64(uuid[0:8], hi)
+	binary.BigEndian.PutUint64(uuid[8:16], low)
 
 	uuid[6] = (uuid[6] & 0x0f) | 0x40 // Version 4
 	uuid[8] = (uuid[8] & 0x3f) | 0x80 // Variant is 10
